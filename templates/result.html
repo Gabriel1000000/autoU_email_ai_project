@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Resultado - AutoU</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+  </head>
+  <body class="bg-light">
+    <nav class="navbar navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand" href="/">AutoU - Classificador de Emails</a>
+      </div>
+    </nav>
+    <main class="container py-5">
+      <div class="row justify-content-center">
+        <div class="col-md-9">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h5 class="card-title">Resultado</h5>
+
+              <p>
+                <strong>Categoria:</strong>
+                <span class="badge {{ 'bg-success' if category=='Produtivo' else 'bg-secondary' }}">{{ category }}</span>
+                {% if ai_used %}
+                  <span class="badge bg-info text-dark ms-2">Processado por AI</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark ms-2">Sem AI (fallback)</span>
+                {% endif %}
+              </p>
+
+              <p><strong>Confiança (score):</strong> {{ '%.2f'|format(score) }}</p>
+              <hr>
+              <h6>Texto do Email</h6>
+              <pre class="p-3 bg-white border rounded">{{ text }}</pre>
+              <hr>
+              <h6>Resposta sugerida</h6>
+              <div class="p-3 bg-white border rounded">
+                {{ suggestion }}
+              </div>
+              <div class="mt-3">
+                <a class="btn btn-primary" href="/">Processar outro</a>
+              </div>
+            </div>
+          </div>
+          <footer class="mt-3 text-center text-muted small">Projeto entregue como prova de conceito.</footer>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
