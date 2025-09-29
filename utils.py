@@ -1,9 +1,7 @@
-# utils.py
 import os
 import json
 import re
 from PyPDF2 import PdfReader
-
 # tenta importar SDK GenAI
 try:
     from google import genai

@@ -1,14 +1,9 @@
-# app.py
-from flask import Flask, render_template, request, jsonify
 import os
-
-from classifier import EmailClassifier
+from flask import Flask, render_template, request
 from utils import generate_response, allowed_file, extract_text_from_file
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # 8 MB
-
-clf = EmailClassifier()
 
 @app.route('/', methods=['GET'])
 def index():
@@ -31,11 +26,8 @@ def process():
 
     if not text:
         return "Nenhum texto recebido para processar.", 400
-
-    try:
-        category_hint, hint_score = clf.predict(text)
-    except Exception:
-        category_hint, hint_score = None, 0.0
+    
+    category_hint = 0.0
 
     result = generate_response(text, category_hint=category_hint)
     if isinstance(result, tuple) and len(result) == 4:
@@ -58,38 +50,6 @@ def process():
                            suggestion=suggestion,
                            ai_used=ai_used)
 
-@app.route('/api/process', methods=['POST'])
-def api_process():
-    content = request.json or {}
-    text = content.get('text','').strip()
-    if not text:
-        return jsonify({"error":"Nenhum texto fornecido"}), 400
-
-    try:
-        category_hint, hint_score = clf.predict(text)
-    except Exception:
-        category_hint, hint_score = None, 0.0
-
-    result = generate_response(text, category_hint=category_hint)
-    if isinstance(result, tuple) and len(result) == 4:
-        category, score, suggestion, ai_used = result
-    elif isinstance(result, tuple) and len(result) == 3:
-        category, score, suggestion = result
-        ai_used = False
-    elif isinstance(result, dict):
-        category = result.get('category', category_hint or 'Improdutivo')
-        score = result.get('confidence', 0.0)
-        suggestion = result.get('reply', '')
-        ai_used = result.get('ai_used', False)
-    else:
-        category, score, suggestion, ai_used = (category_hint or "Improdutivo", 0.0, str(result), False)
-
-    return jsonify({
-        "category": category,
-        "score": score,
-        "suggestion": suggestion,
-        "ai_used": bool(ai_used)
-    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
