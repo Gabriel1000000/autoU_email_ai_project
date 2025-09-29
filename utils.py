@@ -2,7 +2,10 @@ import os
 import json
 import re
 from PyPDF2 import PdfReader
-# tenta importar SDK GenAI
+
+# -----------------------------
+# Tentativa de importar SDK GenAI
+# -----------------------------
 try:
     from google import genai
     from google.genai import types
@@ -11,29 +14,41 @@ except Exception as e:
     print("[utils] google.genai não disponível:", e)
     GENAI_AVAILABLE = False
 
+# -----------------------------
+# Configurações gerais
+# -----------------------------
 ALLOWED_EXTENSIONS = {'txt', 'pdf'}
 
-
+# -----------------------------
+# Funções de arquivo
+# -----------------------------
 def allowed_file(filename):
+    """Verifica se a extensão do arquivo é permitida."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def extract_text_from_file(file):
-    """Recebe um FileStorage (upload) e retorna string do conteúdo."""
+    """
+    Recebe um FileStorage (upload) e retorna string do conteúdo do arquivo.
+    Suporta .txt e .pdf
+    """
     ext = os.path.splitext(file.filename)[1].lower()
+    file.stream.seek(0)
+
     if ext == ".txt":
-        file.stream.seek(0)
         return file.read().decode("utf-8", errors="ignore")
     elif ext == ".pdf":
-        file.stream.seek(0)
         reader = PdfReader(file)
         text = ""
         for page in reader.pages:
             text += page.extract_text() or ""
         return text.strip()
+
     return ""
 
-
+# -----------------------------
+# Funções GenAI
+# -----------------------------
 def _get_genai_client():
     """
     Retorna um client genai configurado.
@@ -47,21 +62,24 @@ def _get_genai_client():
         if key:
             client = genai.Client(api_key=key)
             print("[utils] genai.Client criado com chave de API")
-            return client
         else:
             client = genai.Client()
             print("[utils] genai.Client criado sem chave (ADC ou defaults)")
-            return client
+        return client
     except Exception as e:
         print("[utils] erro ao criar genai.Client:", e)
         return None
 
 
-# cria client uma vez
+# Cria client GenAI uma vez
 GENAI_CLIENT = _get_genai_client()
 
 
+# -----------------------------
+# Fallback local (quando GenAI não disponível)
+# -----------------------------
 def _local_fallback_reply(category_hint=None):
+    """Retorna resposta pré-definida quando GenAI não está disponível."""
     if category_hint == 'Produtivo':
         return ("Produtivo",
                 0.8,
@@ -74,6 +92,9 @@ def _local_fallback_reply(category_hint=None):
                 False)
 
 
+# -----------------------------
+# Função principal de geração de resposta
+# -----------------------------
 def generate_response(text, category_hint=None):
     """
     Retorna (category: str, confidence: float, reply: str, ai_used: bool)
@@ -89,7 +110,6 @@ def generate_response(text, category_hint=None):
     try:
         print("[generate_response] Chamando Google Generative AI (genai)")
 
-        # prompt estrito — segue a regra exata do desafio e adiciona exemplos
         prompt = f"""
 Você é um classificador e gerador de respostas para e-mails corporativos em português.
 
@@ -115,11 +135,11 @@ EMAIL: "Obrigado pelo atendimento, sem mais." -> Improdutivo
 
 EMAIL:
 \"\"\"{text}\"\"\"
-"""
-        # modelo (padrão); você pode sobrescrever definindo GOOGLE_GENAI_MODEL ou GEMINI_MODEL
+"""  # mantém o prompt igual
+
         model_name = os.environ.get("GOOGLE_GENAI_MODEL") or os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
 
-        # cria config para desativar "thinking" (pensamento) — custo/tempo reduzido
+        # Config thinking_budget=0 para reduzir custo/tempo
         try:
             cfg = types.GenerateContentConfig(
                 thinking_config=types.ThinkingConfig(thinking_budget=0)
@@ -127,79 +147,22 @@ EMAIL:
         except Exception:
             cfg = None
 
-        # chamada principal — usa contents (string)
-        if cfg is not None:
-            resp = GENAI_CLIENT.models.generate_content(model=model_name, contents=prompt, config=cfg)
-        else:
-            resp = GENAI_CLIENT.models.generate_content(model=model_name, contents=prompt)
+        # Chamada ao GenAI
+        resp = GENAI_CLIENT.models.generate_content(model=model_name, contents=prompt, config=cfg) if cfg else GENAI_CLIENT.models.generate_content(model=model_name, contents=prompt)
 
-        # extrair texto de resp
-        generated = getattr(resp, "text", None)
-        if not generated:
-            # tentar extrair output / content
-            out_attr = getattr(resp, "output", None)
-            if out_attr:
-                try:
-                    # out_attr pode ser list/dict dependendo da versão
-                    parts = []
-                    if isinstance(out_attr, list):
-                        for item in out_attr:
-                            # item pode ter 'content' como lista de dicts
-                            if isinstance(item, dict):
-                                content_list = item.get("content") or []
-                                for c in content_list:
-                                    if isinstance(c, dict):
-                                        txt = c.get("text") or c.get("content") or None
-                                        if txt:
-                                            parts.append(txt)
-                                    else:
-                                        parts.append(str(c))
-                    elif isinstance(out_attr, dict):
-                        # tentar deep search
-                        def extract_text_from_content(obj):
-                            txts = []
-                            if isinstance(obj, dict):
-                                for k, v in obj.items():
-                                    if k == "text" and isinstance(v, str):
-                                        txts.append(v)
-                                    else:
-                                        txts.extend(extract_text_from_content(v))
-                            elif isinstance(obj, list):
-                                for e in obj:
-                                    txts.extend(extract_text_from_content(e))
-                            return txts
-                        parts = extract_text_from_content(out_attr)
-                    if parts:
-                        generated = "\n".join(parts)
-                except Exception:
-                    generated = None
+        # Extrair texto do GenAI
+        generated = getattr(resp, "text", None) or str(resp)
 
-        if not generated:
-            try:
-                generated = str(resp)
-            except Exception:
-                generated = ""
-
-        generated = (generated or "").strip()
-        if not generated:
-            raise RuntimeError("Resposta vazia do GenAI")
-
-        # tentar extrair JSON do que foi retornado
+        # Tenta extrair JSON da resposta
         m = re.search(r'(\{.*\})', generated, re.S)
         js_text = m.group(1) if m else generated
 
         try:
             out = json.loads(js_text)
         except json.JSONDecodeError:
-            # se não for JSON, heurística: se contém "Produtivo"/"Improdutivo" pega categoria, e reply é o texto completo
-            print("[generate_response] GenAI retornou texto não-JSON, aplicando heurística")
+            # heurística se não for JSON
             lower = generated.lower()
-            if "produtivo" in lower:
-                category = "Produtivo"
-            elif "improdutivo" in lower:
-                category = "Improdutivo"
-            else:
-                category = category_hint or "Improdutivo"
+            category = "Produtivo" if "produtivo" in lower else "Improdutivo"
             confidence = 0.0
             reply = generated
             return category, confidence, reply, True
