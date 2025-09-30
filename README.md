@@ -34,7 +34,7 @@ autoU_email_ai_project/
 
 ## 🔹 Diagrama da Arquitetura
 
-```
+```mermaid
 erDiagram
     APP ||--o{ ROUTES : registra
     ROUTES ||--o{ UTILS : chama
@@ -42,31 +42,32 @@ erDiagram
     UTILS ||--o{ GENAI : chama_api
 
     APP {
-        string app.py
-        int MAX_CONTENT_LENGTH
+        string app_py
+        int max_content_length
         bool debug
     }
     ROUTES {
-        string main_routes.py
-        string /
-        string /process
+        string main_routes_py
+        string route_root
+        string route_process
     }
     UTILS {
-        string utils.py
-        func allowed_file()
-        func extract_text_from_file()
-        func generate_response()
+        string utils_py
+        func allowed_file
+        func extract_text_from_file
+        func generate_response
     }
     GENAI {
-        string client GenAI
+        string client
         string model_name
         float confidence
         string reply
     }
     TEMPLATES {
-        string index.html
-        string result.html
+        string index_html
+        string result_html
     }
+
 
 ```
 ---
