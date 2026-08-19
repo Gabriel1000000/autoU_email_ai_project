@@ -134,6 +134,7 @@ Acesse no navegador: [http://localhost:5000](http://localhost:5000)
 ## 🌐 Deploy na Nuvem
 O projeto está hospedado em um serviço gratuito como:
 - **Render** acesse no navegador: [https://autou-email-ai-project.onrender.com/](https://autou-email-ai-project.onrender.com/)
+- NÃO ESTÁ MAIS NA NUVEM.
 
 ---
 
